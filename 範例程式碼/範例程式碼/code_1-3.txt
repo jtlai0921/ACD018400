@@ -1,0 +1,138 @@
+CREATE TABLE Products
+(name VARCHAR(16) PRIMARY KEY,
+ price INTEGER NOT NULL);
+
+--重複排列・排列・組合
+DELETE FROM Products;
+INSERT INTO Products VALUES('蘋果',  100);
+INSERT INTO Products VALUES('橘子',  50);
+INSERT INTO Products VALUES('香蕉',  80);
+
+
+--建立重複排列的SQL 
+SELECT P1.name AS name_1, P2.name AS name_2 
+  FROM Products P1 CROSS JOIN Products P2;
+
+SELECT P1.name AS name_1, P2.name AS name_2 
+  FROM Products P1, Products P2;
+
+
+--取得排列的SQL 
+SELECT P1.name AS name_1, P2.name AS name_2 
+  FROM Products P1 INNER JOIN Products P2 
+    ON P1.name <> P2.name;
+
+
+--取得組合的SQL 
+SELECT P1.name AS name_1, P2.name AS name_2 
+  FROM Products P1 INNER JOIN Products P2 
+    ON P1.name > P2.name;
+
+--取得組合的SQL：擴充成3欄的版本 
+SELECT P1.name AS name_1, 
+       P2.name AS name_2, 
+       P3.name AS name_3 
+  FROM Products P1 
+         INNER JOIN Products P2
+          ON P1.name > P2.name 
+            INNER JOIN Products P3 
+              ON P2.name > P3.name;
+
+
+DROP TABLE Products;
+CREATE TABLE Products
+(name VARCHAR(16) NOT NULL,
+ price INTEGER NOT NULL);
+
+
+--重複的記錄
+INSERT INTO Products VALUES('蘋果',  50);
+INSERT INTO Products VALUES('橘子',  100);
+INSERT INTO Products VALUES('橘子',  100);
+INSERT INTO Products VALUES('橘子',  100);
+INSERT INTO Products VALUES('香蕉',  80);
+
+
+--刪除重複列的SQL  之一：使用極值函數
+DELETE FROM Products P1 
+ WHERE rowid < ( SELECT MAX(P2.rowid) 
+                   FROM Products P2 
+                  WHERE P1.name = P2. name 
+                    AND P1.price = P2.price );
+
+
+--刪除重複列的SQL  之二：使用非等值連結
+DELETE FROM Products P1 
+ WHERE EXISTS ( SELECT * 
+                  FROM Products P2 
+                 WHERE P1.name = P2.name 
+                   AND P1.price = P2.price 
+                   AND P1.rowid < P2.rowid );
+
+
+--部分不一致的Key搜尋
+CREATE TABLE Addresses
+(name VARCHAR(32),
+ family_id INTEGER,
+ address VARCHAR(32),
+ PRIMARY KEY(name, family_id));
+
+INSERT INTO Addresses VALUES('許 郁文', '100', '台北市萬華區長泰街3-2-29');
+INSERT INTO Addresses VALUES('許 美美', '100', '台北市萬華區長泰街3-2-92');
+INSERT INTO Addresses VALUES('張 瑋礽',   '200', '台北市中正區南海路2-8-1');
+INSERT INTO Addresses VALUES('張 銘仁',   '200', '台北市中正區南海路2-8-1');
+INSERT INTO Addresses VALUES('Holmes',  '300', '貝克街  221B');
+INSERT INTO Addresses VALUES('Watson',  '400', '貝克街  221B');
+
+
+--搜尋同一家人，地址卻不同的記錄
+SELECT DISTINCT A1.name, A1.address 
+  FROM Addresses A1 INNER JOIN Addresses A2 
+    ON A1.family_id = A2.family_id 
+   AND A1.address <> A2.address ;
+
+
+DELETE FROM Products;
+INSERT INTO Products VALUES('蘋果',  50);
+INSERT INTO Products VALUES('橘子',  100);
+INSERT INTO Products VALUES('葡萄',  50);
+INSERT INTO Products VALUES('西瓜',  80);
+INSERT INTO Products VALUES('檸檬',  30);
+INSERT INTO Products VALUES('草莓',  100);
+INSERT INTO Products VALUES('香蕉',  100);
+
+--搜尋價格相同，商品名稱卻不同的記錄 
+SELECT DISTINCT P1.name, P1.price 
+  FROM Products P1 INNER JOIN Products P2 
+    ON P1.price = P2.price 
+   AND P1.name <> P2.name
+ ORDER BY P1.price;
+
+
+--計算排名：使用視窗函數
+SELECT name, price,
+       RANK() OVER (ORDER BY price DESC) AS rank_1,
+       DENSE_RANK() OVER (ORDER BY price DESC) AS rank_2
+  FROM Products;
+
+
+--從排名第一的商品開始。相同排名之後為不連續的排名
+SELECT P1.name, P1.price,
+       (SELECT COUNT(P2.price)
+          FROM Products P2
+         WHERE P2.price > P1.price) + 1 AS rank_1
+  FROM Products P1;
+
+
+--計算排名：使用自我連結
+SELECT P1.name, MAX(P1.price) AS price,
+       COUNT(P2.name) +1 AS rank_1
+  FROM Products P1 LEFT OUTER JOIN Products P2
+    ON P1.price < P2.price GROUP BY P1.name;
+
+--不彙整，直接檢視集合的包含關係
+SELECT P1.name, P2.name
+  FROM Products P1 LEFT OUTER JOIN Products P2
+    ON P1.price < P2.price;
+
+

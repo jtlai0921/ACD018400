@@ -1,0 +1,190 @@
+/* 資料表之間的比對－確認集合的相等性 */
+CREATE TABLE Tbl_A
+ (keycol  CHAR(1) PRIMARY KEY,
+  col_1   INTEGER , 
+  col_2   INTEGER, 
+  col_3   INTEGER);
+
+CREATE TABLE Tbl_B
+ (keycol  CHAR(1) PRIMARY KEY,
+  col_1   INTEGER, 
+  col_2   INTEGER, 
+  col_3   INTEGER);
+
+/* 資料表相等的例子 */
+DELETE FROM Tbl_A;
+INSERT INTO Tbl_A VALUES('A', 2, 3, 4);
+INSERT INTO Tbl_A VALUES('B', 0, 7, 9);
+INSERT INTO Tbl_A VALUES('C', 5, 1, 6);
+
+DELETE FROM Tbl_B;
+INSERT INTO Tbl_B VALUES('A', 2, 3, 4);
+INSERT INTO Tbl_B VALUES('B', 0, 7, 9);
+INSERT INTO Tbl_B VALUES('C', 5, 1, 6);
+
+
+/* 僅「B」列不同的例子 */
+DELETE FROM Tbl_A;
+INSERT INTO Tbl_A VALUES('A', 2, 3, 4);
+INSERT INTO Tbl_A VALUES('B', 0, 7, 9);
+INSERT INTO Tbl_A VALUES('C', 5, 1, 6);
+
+DELETE FROM Tbl_B;
+INSERT INTO Tbl_B VALUES('A', 2, 3, 4);
+INSERT INTO Tbl_B VALUES('B', 0, 7, 8);
+INSERT INTO Tbl_B VALUES('C', 5, 1, 6);
+
+
+/* 包含NULL的例子（相等） */
+DELETE FROM Tbl_A;
+INSERT INTO Tbl_A VALUES('A', NULL, 3, 4);
+INSERT INTO Tbl_A VALUES('B', 0, 7, 9);
+INSERT INTO Tbl_A VALUES('C', NULL, NULL, NULL);
+
+DELETE FROM Tbl_B;
+INSERT INTO Tbl_B VALUES('A', NULL, 3, 4);
+INSERT INTO Tbl_B VALUES('B', 0, 7, 9);
+INSERT INTO Tbl_B VALUES('C', NULL, NULL, NULL);
+
+
+/* 包含NULL的例子（僅「C」列不同） */
+DELETE FROM Tbl_A;
+INSERT INTO Tbl_A VALUES('A', NULL, 3, 4);
+INSERT INTO Tbl_A VALUES('B', 0, 7, 9);
+INSERT INTO Tbl_A VALUES('C', NULL, NULL, NULL);
+
+DELETE FROM Tbl_B;
+INSERT INTO Tbl_B VALUES('A', NULL, 3, 4);
+INSERT INTO Tbl_B VALUES('B', 0, 7, 9);
+INSERT INTO Tbl_B VALUES('C', 0, NULL, NULL);
+
+
+/* 3. 以差集呈現關聯式除法 */
+CREATE TABLE Skills 
+(skill VARCHAR(32),
+ PRIMARY KEY(skill));
+
+CREATE TABLE EmpSkills 
+(emp   VARCHAR(32), 
+ skill VARCHAR(32),
+ PRIMARY KEY(emp, skill));
+
+INSERT INTO Skills VALUES('Oracle');
+INSERT INTO Skills VALUES('UNIX');
+INSERT INTO Skills VALUES('Java');
+
+INSERT INTO EmpSkills VALUES('郁文', 'Oracle');
+INSERT INTO EmpSkills VALUES('郁文', 'UNIX');
+INSERT INTO EmpSkills VALUES('郁文', 'Java');
+INSERT INTO EmpSkills VALUES('郁文', 'C#');
+INSERT INTO EmpSkills VALUES('瑋礽', 'Oracle');
+INSERT INTO EmpSkills VALUES('瑋礽', 'UNIX');
+INSERT INTO EmpSkills VALUES('瑋礽', 'Java');
+INSERT INTO EmpSkills VALUES('銘仁', 'UNIX');
+INSERT INTO EmpSkills VALUES('銘仁', 'Oracle');
+INSERT INTO EmpSkills VALUES('銘仁', 'PHP');
+INSERT INTO EmpSkills VALUES('銘仁', 'Perl');
+INSERT INTO EmpSkills VALUES('銘仁', 'C++');
+INSERT INTO EmpSkills VALUES('靚儀', 'Perl');
+INSERT INTO EmpSkills VALUES('勝朋', 'Oracle');
+
+/* 4. 找出相等的局部集合 */
+CREATE TABLE SupParts
+(sup  CHAR(32) NOT NULL,
+ part CHAR(32) NOT NULL,
+ PRIMARY KEY(sup, part));
+
+INSERT INTO SupParts VALUES('A',  '螺絲');
+INSERT INTO SupParts VALUES('A',  '螺帽');
+INSERT INTO SupParts VALUES('A',  '螺管');
+INSERT INTO SupParts VALUES('B',  '螺絲');
+INSERT INTO SupParts VALUES('B',  '螺管');
+INSERT INTO SupParts VALUES('C',  '螺絲');
+INSERT INTO SupParts VALUES('C',  '螺帽');
+INSERT INTO SupParts VALUES('C',  '螺管');
+INSERT INTO SupParts VALUES('D',  '螺絲');
+INSERT INTO SupParts VALUES('D',  '螺管');
+INSERT INTO SupParts VALUES('E',  '保險絲');
+INSERT INTO SupParts VALUES('E',  '螺帽');
+INSERT INTO SupParts VALUES('E',  '螺管');
+INSERT INTO SupParts VALUES('F',  '保險絲');
+
+/* 5. 刪除重複列的高速查詢
+PostgreSQL會將「with oids」加在CREATE TABLE敘述文的最後 */
+CREATE TABLE Products
+(name  CHAR(16),
+ price INTEGER);
+
+INSERT INTO Products VALUES('蘋果',  50);
+INSERT INTO Products VALUES('橘子', 100);
+INSERT INTO Products VALUES('橘子', 100);
+INSERT INTO Products VALUES('橘子', 100);
+INSERT INTO Products VALUES('香蕉',  80);
+
+/* 資料表之間的比對：基本篇*/
+SELECT COUNT(*) AS row_cnt
+  FROM ( SELECT * 
+           FROM   tbl_A 
+         UNION
+         SELECT * 
+           FROM   tbl_B ) TMP;
+
+/* 資料表之間的比對：應用篇（Oracle無法執行） */
+SELECT CASE WHEN COUNT(*) = 0 
+            THEN '相等'
+            ELSE '不相等' END AS result
+  FROM ((SELECT * FROM  tbl_A
+         UNION
+         SELECT * FROM  tbl_B) 
+         EXCEPT
+        (SELECT * FROM  tbl_A
+         INTERSECT 
+         SELECT * FROM  tbl_B)) TMP;
+
+/* 對資料表執行diff：選出互斥聯集 */
+(SELECT * FROM  tbl_A
+   EXCEPT
+ SELECT * FROM  tbl_B)
+ UNION ALL
+(SELECT * FROM  tbl_B
+   EXCEPT
+ SELECT * FROM  tbl_A);
+
+/* 以差集呈現關聯式除法（具有餘數的除法） */
+SELECT DISTINCT emp
+  FROM EmpSkills ES1
+ WHERE NOT EXISTS
+        (SELECT skill
+           FROM Skills
+         EXCEPT
+         SELECT skill
+           FROM EmpSkills ES2
+          WHERE ES1.emp = ES2.emp);
+
+/* 找出相等的部分集合(p.134) */
+SELECT SP1.sup, SP2.sup
+  FROM SupParts SP1, SupParts SP2 
+ WHERE SP1.sup < SP2.sup              /* 建立業者的組合 */
+   AND SP1.part = SP2.part            /* 條件1．銷售種類相同的零件 */
+GROUP BY SP1.sup, SP2.sup 
+HAVING COUNT(*) = (SELECT COUNT(*)    /* 條件2．銷售數量相同的零件 */
+                     FROM SupParts SP3 
+                    WHERE SP3.sup = SP1.sup)
+   AND COUNT(*) = (SELECT COUNT(*) 
+                     FROM SupParts SP4 
+                    WHERE SP4.sup = SP2.sup);
+
+/* 刪除重覆列的高速查詢１：利用EXCEPT求出補集合 */
+DELETE FROM Products
+ WHERE rowid IN ( SELECT rowid
+                    FROM Products 
+                  EXCEPT
+                  SELECT MAX(rowid)
+                    FROM Products 
+                   GROUP BY name, price);
+
+/* 刪除重覆列的高速查詢２：利用NOT IN求出補集合 */
+DELETE FROM Products 
+ WHERE rowid NOT IN ( SELECT MAX(rowid)
+                        FROM Products 
+                       GROUP BY name, price);

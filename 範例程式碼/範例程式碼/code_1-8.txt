@@ -1,0 +1,291 @@
+/* 利用外部連結執行列欄轉換：其1（列→欄）：製作交叉分析表 */
+CREATE TABLE Courses
+(name   VARCHAR(32), 
+ course VARCHAR(32), 
+ PRIMARY KEY(name, course));
+
+INSERT INTO Courses VALUES('郁文', 'SQL入門');
+INSERT INTO Courses VALUES('郁文', 'UNIX基礎');
+INSERT INTO Courses VALUES('瑋礽', 'SQL入門');
+INSERT INTO Courses VALUES('銘仁', 'SQL入門');
+INSERT INTO Courses VALUES('銘仁', 'Java中級');
+INSERT INTO Courses VALUES('靚儀', 'UNIX基礎');
+INSERT INTO Courses VALUES('勝朋', 'SQL入門');
+
+-- 製作交叉分析表的水平展開：其1  使用外部連結
+SELECT C0.name,
+       CASE WHEN C1.name IS NOT NULL THEN '○' ELSE NULL END AS "SQL入門",
+       CASE WHEN C2.name IS NOT NULL THEN '○' ELSE NULL END AS "UNIX基礎",
+       CASE WHEN C3.name IS NOT NULL THEN '○' ELSE NULL END AS "Java中級"
+  FROM (SELECT DISTINCT name FROM Courses) C0 --這個C0就是表側
+         LEFT OUTER JOIN
+          (SELECT name FROM Courses WHERE course = 'SQL入門') C1
+           ON C0.name = C1.name
+             LEFT OUTER JOIN
+              (SELECT name FROM Courses WHERE course = 'UNIX基礎') C2
+                ON C0.name = C2.name
+                  LEFT OUTER JOIN
+                   (SELECT name FROM Courses WHERE course = 'Java中級') C3
+                     ON C0.name = C3.name;
+
+
+-- 水平展開：其2　使用純量子查詢
+SELECT C0.name,
+       (SELECT '○'
+          FROM Courses C1
+         WHERE course = 'SQL入門'
+           AND C1.name = C0.name) AS "SQL入門",
+       (SELECT '○'
+          FROM Courses C2
+         WHERE course = 'UNIX基礎'
+           AND C2.name = C0.name) AS "UNIX基礎",
+       (SELECT '○'
+          FROM Courses C3
+         WHERE course = 'Java中級'
+           AND C3.name = C0.name) AS "Java中級"
+  FROM (SELECT DISTINCT name FROM Courses) C0; --這個C0為表側
+
+
+-- 水平展開：其3　使用巢狀結構的CASE敘述式
+SELECT name,
+       CASE WHEN SUM(CASE WHEN course = 'SQL入門' THEN 1 ELSE NULL END) = 1
+            THEN '○' ELSE NULL END AS "SQL入門",
+       CASE WHEN SUM(CASE WHEN course = 'UNIX基礎' THEN 1 ELSE NULL END) = 1
+            THEN '○' ELSE NULL END AS "UNIX基礎",
+       CASE WHEN SUM(CASE WHEN course = 'Java中級' THEN 1 ELSE NULL END) = 1
+            THEN '○' ELSE NULL END AS "Java中級"
+  FROM Courses
+ GROUP BY name;
+
+
+
+/* 利用外部連結執行列欄轉換　其2（欄→列）：將重複的項目整理成一個欄位 */
+CREATE TABLE Personnel
+ (employee   varchar(32), 
+  child_1    varchar(32), 
+  child_2    varchar(32), 
+  child_3    varchar(32), 
+  PRIMARY KEY(employee));
+
+INSERT INTO Personnel VALUES('郁文', '一郎', '二郎', '三郎');
+INSERT INTO Personnel VALUES('銘仁', '春子', '夏子', NULL);
+INSERT INTO Personnel VALUES('瑋礽', '夏子', NULL,   NULL);
+INSERT INTO Personnel VALUES('靚儀', NULL,   NULL,   NULL);
+
+-- 將欄位轉換成列：使用UNION ALL
+SELECT employee, child_1 AS child FROM Personnel
+UNION ALL
+SELECT employee, child_2 AS child FROM Personnel
+UNION ALL
+SELECT employee, child_3 AS child FROM Personnel;
+
+CREATE VIEW Children(child)
+AS SELECT child_1 FROM Personnel
+UNION
+SELECT child_2 FROM Personnel
+UNION
+SELECT child_3 FROM Personnel;
+
+
+-- 取得員工小孩列表的SQL（連沒有小孩的員工也輸出）
+SELECT EMP.employee, Children.child
+  FROM Personnel EMP
+         LEFT OUTER JOIN Children
+           ON Children.child IN (EMP.child_1, EMP.child_2, EMP.child_3);
+
+/* 利用交叉分析表建立巢狀構的表側 */
+CREATE TABLE TblSex
+(sex_cd   char(1), 
+ sex varchar(5), 
+ PRIMARY KEY(sex_cd));
+
+CREATE TABLE TblAge 
+(age_class char(1), 
+ age_range varchar(30), 
+ PRIMARY KEY(age_class));
+
+CREATE TABLE TblPop 
+(pref_name  varchar(30), 
+ age_class  char(1), 
+ sex_cd     char(1), 
+ population integer, 
+ PRIMARY KEY(pref_name, age_class,sex_cd));
+
+INSERT INTO TblSex (sex_cd, sex ) VALUES('m', '男');
+INSERT INTO TblSex (sex_cd, sex ) VALUES('f', '女');
+
+INSERT INTO TblAge (age_class, age_range ) VALUES('1',  '21～30歳');
+INSERT INTO TblAge (age_class, age_range ) VALUES('2',  '31～40歳');
+INSERT INTO TblAge (age_class, age_range ) VALUES('3',  '41～50歳');
+
+INSERT INTO TblPop VALUES('宜蘭', '1', 'm', 400 );
+INSERT INTO TblPop VALUES('宜蘭', '3', 'm', 1000 );
+INSERT INTO TblPop VALUES('宜蘭', '1', 'f', 800 );
+INSERT INTO TblPop VALUES('宜蘭', '3', 'f', 1000 );
+INSERT INTO TblPop VALUES('基隆', '1', 'm', 700 );
+INSERT INTO TblPop VALUES('基隆', '1', 'f', 500 );
+INSERT INTO TblPop VALUES('基隆', '3', 'f', 800 );
+INSERT INTO TblPop VALUES('台北', '1', 'm', 900 );
+INSERT INTO TblPop VALUES('台北', '1', 'f', 1500 );
+INSERT INTO TblPop VALUES('台北', '3', 'f', 1200 );
+INSERT INTO TblPop VALUES('桃園', '1', 'm', 900 );
+INSERT INTO TblPop VALUES('桃園', '1', 'f', 1000 );
+INSERT INTO TblPop VALUES('桃園', '3', 'f', 900 );
+
+-- 利用外部連結建立巢狀結構的表側：錯誤的SQL
+SELECT MASTER1.age_class AS age_class,
+       MASTER2.sex_cd AS sex_cd,
+       DATA.pop_tohoku AS pop_tohoku,
+       DATA.pop_kanto AS pop_kanto
+  FROM (SELECT age_class, sex_cd,
+               SUM(CASE WHEN pref_name IN ('基隆', '宜蘭')
+                        THEN population ELSE NULL END) AS pop_tohoku,
+               SUM(CASE WHEN pref_name IN ('台北', '桃園')
+                        THEN population ELSE NULL END) AS pop_kanto
+          FROM TblPop
+         GROUP BY age_class, sex_cd) DATA
+           RIGHT OUTER JOIN TblAge MASTER1 --外部連結1：以年齡級別為主要資料表的連結
+              ON MASTER1.age_class = DATA.age_class
+           RIGHT OUTER JOIN TblSex MASTER2 --外部連結2：以性別為主要資料表的連結
+              ON MASTER2.sex_cd = DATA.sex_cd;
+
+
+-- 在一開始的外部連結完成後結束的情況：年齡級別「2」的確出現在結果裡
+SELECT MASTER1.age_class AS age_class,
+       DATA.sex_cd AS sex_cd,
+       DATA.pop_tohoku AS pop_tohoku,
+       DATA.pop_kanto AS pop_kanto
+  FROM (SELECT age_class, sex_cd,
+               SUM(CASE WHEN pref_name IN ('基隆', '宜蘭')
+                        THEN population ELSE NULL END) AS pop_tohoku,
+               SUM(CASE WHEN pref_name IN ('台北', '桃園')
+                        THEN population ELSE NULL END) AS pop_kanto
+          FROM TblPop
+         GROUP BY age_class, sex_cd) DATA
+          RIGHT OUTER JOIN TblAge MASTER1
+             ON MASTER1.age_class = DATA.age_class;
+
+
+-- 利用外部連結建立巢狀結構的表側：正確的SQL
+SELECT MASTER.age_class AS age_class,
+       MASTER.sex_cd AS sex_cd,
+       DATA.pop_tohoku AS pop_tohoku,
+       DATA.pop_kanto AS pop_kanto
+  FROM (SELECT age_class, sex_cd
+          FROM TblAge CROSS JOIN TblSex ) MASTER --以交叉連結建立主要資料表之間的內積
+            LEFT OUTER JOIN
+             (SELECT age_class, sex_cd,
+                     SUM(CASE WHEN pref_name IN ('基隆', '宜蘭')
+                              THEN population ELSE NULL END) AS pop_tohoku,
+                     SUM(CASE WHEN pref_name IN ('台北', '桃園')
+                              THEN population ELSE NULL END) AS pop_kanto
+                FROM TblPop
+               GROUP BY age_class, sex_cd) DATA
+    ON MASTER.age_class = DATA.age_class
+   AND MASTER.sex_cd = DATA.sex_cd;
+
+
+/* 相當於乘法的連結 */
+CREATE TABLE Items
+ (item_no INTEGER PRIMARY KEY,
+  item    VARCHAR(32) NOT NULL);
+
+INSERT INTO Items VALUES(10, 'FD');
+INSERT INTO Items VALUES(20, 'CD-R');
+INSERT INTO Items VALUES(30, 'MO');
+INSERT INTO Items VALUES(40, 'DVD');
+
+CREATE TABLE SalesHistory
+ (sale_date DATE NOT NULL,
+  item_no   INTEGER NOT NULL,
+  quantity  INTEGER NOT NULL,
+  PRIMARY KEY(sale_date, item_no));
+
+INSERT INTO SalesHistory VALUES('2018-10-01',  10,  4);
+INSERT INTO SalesHistory VALUES('2018-10-01',  20, 10);
+INSERT INTO SalesHistory VALUES('2018-10-01',  30,  3);
+INSERT INTO SalesHistory VALUES('2018-10-03',  10, 32);
+INSERT INTO SalesHistory VALUES('2018-10-03',  30, 12);
+INSERT INTO SalesHistory VALUES('2018-10-04',  20, 22);
+INSERT INTO SalesHistory VALUES('2018-10-04',  30,  7);
+
+-- 答案：其1　在連結之前先彙總，建立1對1的關聯性
+SELECT I.item_no, SH.total_qty
+  FROM Items I LEFT OUTER JOIN
+                (SELECT item_no, SUM(quantity) AS total_qty
+                   FROM SalesHistory
+                  GROUP BY item_no) SH
+    ON I.item_no = SH.item_no;
+
+-- 答案：其2　在彙整之前進行1對多的連結
+SELECT I.item_no, SUM(SH.quantity) AS total_qty
+  FROM Items I LEFT OUTER JOIN SalesHistory SH
+    ON I.item_no = SH.item_no --1對多的連結
+ GROUP BY I.item_no;
+
+
+/* 完全外部連結 */
+CREATE TABLE Class_A
+(id char(1), 
+ name varchar(30), 
+ PRIMARY KEY(id));
+
+CREATE TABLE Class_B
+(id   char(1), 
+ name varchar(30), 
+ PRIMARY KEY(id));
+
+INSERT INTO Class_A (id, name) VALUES('1', '郁文');
+INSERT INTO Class_A (id, name) VALUES('2', '瑋礽');
+INSERT INTO Class_A (id, name) VALUES('3', '銘仁');
+
+INSERT INTO Class_B (id, name) VALUES('1', '郁文');
+INSERT INTO Class_B (id, name) VALUES('2', '瑋礽');
+INSERT INTO Class_B (id, name) VALUES('4', '靚儀');
+
+
+-- 完全外部連結可「完全」儲存資料
+SELECT COALESCE(A.id, B.id) AS id,
+       A.name AS A_name,
+       B.name AS B_name
+  FROM Class_A A FULL OUTER JOIN Class_B B
+    ON A.id = B.id;
+
+
+-- 在無法使用完全外部連結的環境下使用的替代方案
+SELECT A.id AS id, A.name, B.name
+  FROM Class_A A LEFT OUTER JOIN Class_B B
+    ON A.id = B.id
+UNION
+SELECT B.id AS id, A.name, B.name
+  FROM Class_A A RIGHT OUTER JOIN Class_B B
+    ON A.id = B.id;
+
+
+SELECT A.id AS id, A.name AS A_name
+  FROM Class_A A LEFT OUTER JOIN Class_B B
+    ON A.id = B.id
+ WHERE B.name IS NULL;
+
+SELECT B.id AS id, B.name AS B_name
+  FROM Class_A A RIGHT OUTER JOIN Class_B B
+    ON A.id = B.id
+ WHERE A.name IS NULL;
+
+SELECT COALESCE(A.id, B.id) AS id,
+       COALESCE(A.name , B.name ) AS name
+  FROM Class_A A FULL OUTER JOIN Class_B B
+    ON A.id = B.id
+ WHERE A.name IS NULL
+    OR B.name IS NULL;
+
+-- 以外部連結執行關聯式除法：差集的應用
+SELECT DISTINCT shop
+  FROM ShopItems SI1
+ WHERE NOT EXISTS
+        (SELECT I.item
+           FROM Items I LEFT OUTER JOIN ShopItems SI2
+             ON I.item = SI2.item
+            AND SI1.shop = SI2.shop
+          WHERE SI2.item IS NULL) ;
+

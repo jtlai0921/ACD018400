@@ -1,0 +1,379 @@
+/* 搜尋缺漏資料 */
+CREATE TABLE SeqTbl
+(seq  INTEGER PRIMARY KEY,
+ name VARCHAR(16) NOT NULL);
+
+INSERT INTO SeqTbl VALUES(1,  '迪克');
+INSERT INTO SeqTbl VALUES(2,  '安');
+INSERT INTO SeqTbl VALUES(3,  '萊爾');
+INSERT INTO SeqTbl VALUES(5,  '卡特');
+INSERT INTO SeqTbl VALUES(6,  '瑪莉');
+INSERT INTO SeqTbl VALUES(8,  '班');
+
+
+-- 傳回結果後，資料有缺漏 
+SELECT '資料有缺漏 ' AS gap 
+  FROM SeqTbl 
+HAVING COUNT(*) <> MAX(seq);
+
+-- 空白的GROUP BY敘述句
+SELECT '資料有缺漏 ' AS gap 
+  FROM SeqTbl 
+GROUP BY ()
+HAVING COUNT(*) <> MAX(seq);
+
+-- 搜尋缺漏資料的最小值
+SELECT MIN(seq + 1) AS gap 
+  FROM SeqTbl 
+ WHERE (seq+ 1) NOT IN (SELECT seq FROM SeqTbl);
+
+
+-- 搜尋缺號：進階版
+CREATE TABLE SeqTbl
+( seq INTEGER NOT NULL PRIMARY KEY);
+
+-- 資料無缺漏：開始值為1
+DELETE FROM SeqTbl;
+INSERT INTO SeqTbl VALUES(1);
+INSERT INTO SeqTbl VALUES(2);
+INSERT INTO SeqTbl VALUES(3);
+INSERT INTO SeqTbl VALUES(4);
+INSERT INTO SeqTbl VALUES(5);
+
+-- 資料有缺漏：開始值為1
+DELETE FROM SeqTbl;
+INSERT INTO SeqTbl VALUES(1);
+INSERT INTO SeqTbl VALUES(2);
+INSERT INTO SeqTbl VALUES(4);
+INSERT INTO SeqTbl VALUES(5);
+INSERT INTO SeqTbl VALUES(8);
+
+-- 資料無缺漏：開始值不為1
+DELETE FROM SeqTbl;
+INSERT INTO SeqTbl VALUES(3);
+INSERT INTO SeqTbl VALUES(4);
+INSERT INTO SeqTbl VALUES(5);
+INSERT INTO SeqTbl VALUES(6);
+INSERT INTO SeqTbl VALUES(7);
+
+-- 資料有缺漏：開始值不為1
+DELETE FROM SeqTbl;
+INSERT INTO SeqTbl VALUES(3);
+INSERT INTO SeqTbl VALUES(4);
+INSERT INTO SeqTbl VALUES(7);
+INSERT INTO SeqTbl VALUES(8);
+INSERT INTO SeqTbl VALUES(10);
+
+SELECT '資料有缺漏 ' AS gap 
+  FROM SeqTbl 
+HAVING COUNT(*) <> MAX(seq) - MIN(seq) + 1;
+
+
+-- 不論有無缺號，都傳回一列 
+SELECT CASE WHEN COUNT(*) = 0 THEN '資料表為空白的 ' 
+            WHEN COUNT(*) <> MAX(seq) -MIN(seq) + 1 THEN '資料有缺漏 ' 
+            ELSE '連續 ' END AS gap 
+  FROM SeqTbl;
+
+
+-- 搜尋缺漏資料的最小值：資料表沒有1的時候，傳回1  
+SELECT  CASE  WHEN  COUNT(*) = 0 OR MIN(seq)  >  1  -- 最小值不為1的時候→傳回1  
+              THEN  1  
+              ELSE  (SELECT MIN(seq +1)  -- 最小值為1的時候→傳回最小的缺號  
+                       FROM SeqTbl S1  
+                      WHERE NOT EXISTS  
+                            (SELECT *  
+                               FROM SeqTbl S2  
+                              WHERE S2.seq = S1.seq + 1)) END 
+  FROM SeqTbl;
+
+
+
+CREATE TABLE Graduates
+(name   VARCHAR(16) PRIMARY KEY,
+ income INTEGER NOT NULL);
+
+INSERT INTO Graduates VALUES('山普森', 400000);
+INSERT INTO Graduates VALUES('麥克',     30000);
+INSERT INTO Graduates VALUES('懷特',   20000);
+INSERT INTO Graduates VALUES('阿諾', 20000);
+INSERT INTO Graduates VALUES('史密斯',     20000);
+INSERT INTO Graduates VALUES('羅倫斯',   15000);
+INSERT INTO Graduates VALUES('哈德遜',   15000);
+INSERT INTO Graduates VALUES('肯特',     10000);
+INSERT INTO Graduates VALUES('貝克',   10000);
+INSERT INTO Graduates VALUES('史考特',   10000);
+
+
+-- 計算眾數的SQL  其一：使用ALL謂詞
+SELECT income, COUNT(*) AS cnt 
+  FROM Graduates 
+ GROUP BY income 
+HAVING COUNT(*) >= ALL ( SELECT COUNT(*) 
+                           FROM Graduates
+                          GROUP BY income);
+
+
+-- 計算眾數的SQL  其二：使用極值函數 
+SELECT income, COUNT(*) AS cnt 
+  FROM Graduates 
+ GROUP BY income 
+HAVING COUNT(*) >= ( SELECT MAX(cnt) 
+                       FROM ( SELECT COUNT(*) AS cnt 
+                                FROM Graduates 
+                               GROUP BY income) TMP ) ;
+
+
+
+CREATE TABLE NullTbl (col_1 INTEGER);
+
+INSERT INTO NullTbl VALUES (NULL);
+INSERT INTO NullTbl VALUES (NULL);
+INSERT INTO NullTbl VALUES (NULL);
+
+SELECT COUNT(*), COUNT(col_1) 
+  FROM NullTbl;
+
+
+/* 搜尋沒有NULL的集合 */
+CREATE TABLE Students
+(student_id   INTEGER PRIMARY KEY,
+ dpt          VARCHAR(16) NOT NULL,
+ sbmt_date    DATE);
+
+INSERT INTO Students VALUES(100,  '理學部',   '2018-10-10');
+INSERT INTO Students VALUES(101,  '理學部',   '2018-09-22');
+INSERT INTO Students VALUES(102,  '文學部',   NULL);
+INSERT INTO Students VALUES(103,  '文學部',   '2018-09-10');
+INSERT INTO Students VALUES(200,  '文學部',   '2018-09-22');
+INSERT INTO Students VALUES(201,  '工學部',   NULL);
+INSERT INTO Students VALUES(202,  '經濟學部', '2018-09-25');
+
+
+-- 選出繳交日期不含NULL的學部  其1：使用COUNT函數 
+SELECT dpt 
+  FROM Students 
+ GROUP BY dpt 
+HAVING COUNT(*) = COUNT(sbmt_date);
+
+-- 選出繳交日期不含NULL的學部  其2：使用CASE敘述式 
+SELECT dpt 
+  FROM Students 
+ GROUP BY dpt 
+HAVING COUNT(*) = SUM(CASE WHEN sbmt_date IS NOT NULL 
+                           THEN 1 ELSE 0 END);
+
+
+-- 對集合設定更細膩的條件
+CREATE TABLE TestResults
+(student_id CHAR(12) NOT NULL PRIMARY KEY,
+ class   CHAR(1)  NOT NULL,
+ sex     CHAR(1)  NOT NULL,
+ score   INTEGER  NOT NULL);
+
+INSERT INTO TestResults VALUES('001', 'A', '男', 100);
+INSERT INTO TestResults VALUES('002', 'A', '女', 100);
+INSERT INTO TestResults VALUES('003', 'A', '女',  49);
+INSERT INTO TestResults VALUES('004', 'A', '男',  30);
+INSERT INTO TestResults VALUES('005', 'B', '女', 100);
+INSERT INTO TestResults VALUES('006', 'B', '男',  92);
+INSERT INTO TestResults VALUES('007', 'B', '男',  80);
+INSERT INTO TestResults VALUES('008', 'B', '男',  80);
+INSERT INTO TestResults VALUES('009', 'B', '女',  10);
+INSERT INTO TestResults VALUES('010', 'C', '男',  92);
+INSERT INTO TestResults VALUES('011', 'C', '男',  80);
+INSERT INTO TestResults VALUES('012', 'C', '女',  21);
+INSERT INTO TestResults VALUES('013', 'D', '女', 100);
+INSERT INTO TestResults VALUES('014', 'D', '女',   0);
+INSERT INTO TestResults VALUES('015', 'D', '女',   0);
+
+
+SELECT class 
+  FROM TestResults 
+ GROUP BY class 
+HAVING COUNT(*) * 0.75 
+        <= SUM(CASE WHEN score >= 80 
+                    THEN 1 
+                    ELSE 0 END) ;
+
+
+
+SELECT class 
+  FROM TestResults 
+ GROUP BY class 
+HAVING SUM(CASE WHEN score >= 50 AND sex = '男' 
+                THEN 1 
+                ELSE 0 END) 
+         > SUM(CASE WHEN score >= 50 AND sex = '女' 
+                    THEN 1 
+                    ELSE 0 END) ; 
+
+-- 比較男生與女生的平均分數的查詢  其1：以0傳回空集合的平均 
+SELECT class 
+  FROM TestResults 
+ GROUP BY class 
+HAVING AVG(CASE WHEN sex = '男' THEN score ELSE 0 END) 
+         < AVG(CASE WHEN sex = '女' THEN score ELSE 0 END) ;
+
+
+-- 比較男生與女生的平均分數的查詢  其2：以NULL傳回空集合的平均 
+SELECT class 
+  FROM TestResults 
+ GROUP BY class 
+HAVING AVG(CASE WHEN sex = '男' THEN score ELSE NULL END) 
+        < AVG(CASE WHEN sex = '女' THEN score ELSE NULL END) ;
+
+
+
+
+CREATE TABLE Teams
+(member  CHAR(12) NOT NULL PRIMARY KEY,
+ team_id INTEGER  NOT NULL,
+ status  CHAR(8)  NOT NULL);
+
+INSERT INTO Teams VALUES('約翰',   1, '待機');
+INSERT INTO Teams VALUES('肯',     1, '出動中');
+INSERT INTO Teams VALUES('米克',   1, '待機');
+INSERT INTO Teams VALUES('加倫',   2, '出動中');
+INSERT INTO Teams VALUES('奇斯',   2, '休暇');
+INSERT INTO Teams VALUES('莊臣',   3, '待機');
+INSERT INTO Teams VALUES('哈特',   3, '待機');
+INSERT INTO Teams VALUES('迪克', 3, '待機');
+INSERT INTO Teams VALUES('貝斯',     4, '待機');
+INSERT INTO Teams VALUES('阿倫',   5, '出動中');
+INSERT INTO Teams VALUES('羅伯特', 5, '休暇');
+INSERT INTO Teams VALUES('凱根', 5, '待機');
+
+-- 利用謂詞撰寫全稱陳述文 
+SELECT team_id, member 
+  FROM Teams T1 
+ WHERE NOT EXISTS (SELECT * 
+                     FROM Teams T2 
+                    WHERE T1.team_id = T2.team_id 
+                      AND status <> '待機 ' ); 
+
+/* 利用集合表現全稱陳述文：其1 */
+SELECT team_id
+  FROM Teams
+ GROUP BY team_id
+HAVING COUNT(*) = SUM(CASE WHEN status = '待機'
+                           THEN 1
+                           ELSE 0 END);
+
+-- 利用集合表現全稱陳述文：其 2 
+SELECT team_id 
+  FROM Teams 
+ GROUP BY team_id 
+HAVING MAX(status) = '待機 ' 
+   AND MIN(status) = '待機 ';
+
+-- 於每一隊列出全員是否待機 
+SELECT team_id, 
+       CASE WHEN MAX(status) = '待機 ' AND MIN(status) = '待機 ' 
+            THEN '全員待機' 
+            ELSE '隊長！隊員不足 ' END AS status 
+  FROM Teams GROUP BY team_id; 
+
+
+-- 唯一集合與多重集合
+CREATE TABLE Materials
+(center         CHAR(12) NOT NULL,
+ receive_date   DATE     NOT NULL,
+ material       CHAR(12) NOT NULL,
+ PRIMARY KEY(center, receive_date));
+
+INSERT INTO Materials VALUES('台北' ,'2018-4-01', '錫');
+INSERT INTO Materials VALUES('台北' ,'2018-4-12', '鋅');
+INSERT INTO Materials VALUES('台北' ,'2018-5-17', '鋁');
+INSERT INTO Materials VALUES('台北' ,'2018-5-20', '鋅');
+INSERT INTO Materials VALUES('高雄' ,'2018-4-20', '銅');
+INSERT INTO Materials VALUES('高雄' ,'2018-4-22', '鎳');
+INSERT INTO Materials VALUES('高雄' ,'2018-4-29', '鉛');
+INSERT INTO Materials VALUES('台中', '2018-3-15',  '鈦');
+INSERT INTO Materials VALUES('台中', '2018-4-01',  '碳鋼');
+INSERT INTO Materials VALUES('台中', '2018-4-24',  '碳鋼');
+INSERT INTO Materials VALUES('台中', '2018-5-02',  '鎂');
+INSERT INTO Materials VALUES('台中', '2018-5-10',  '鈦');
+INSERT INTO Materials VALUES('桃園' ,'2018-5-10', '鋅');
+INSERT INTO Materials VALUES('桃園' ,'2018-5-28', '錫');
+
+
+-- 選出資材重複的據點
+SELECT center
+  FROM Materials
+ GROUP BY center
+HAVING COUNT(material) <> COUNT(DISTINCT material);
+
+
+SELECT center, CASE WHEN COUNT(material) <> COUNT(DISTINCT material)
+                    THEN '有重複'
+                    ELSE '無重複'
+                END AS status
+  FROM Materials
+ GROUP BY center;
+
+
+-- 有重複的集合：使用EXISTS
+SELECT center, material
+  FROM Materials M1
+ WHERE EXISTS (SELECT *
+                 FROM Materials M2
+                WHERE M1.center = M2.center
+                  AND M1.receive_date <> M2.receive_date
+                  AND M1.material = M2.material);
+
+
+
+/* 利用關聯式除法執行購物籃分析 */
+CREATE TABLE Items
+(item VARCHAR(16) PRIMARY KEY);
+ 
+CREATE TABLE ShopItems
+(shop VARCHAR(16),
+ item VARCHAR(16),
+    PRIMARY KEY(shop, item));
+
+INSERT INTO Items VALUES('啤酒');
+INSERT INTO Items VALUES('紙尿布');
+INSERT INTO Items VALUES('腳踏車');
+
+INSERT INTO ShopItems VALUES('基隆',  '啤酒');
+INSERT INTO ShopItems VALUES('基隆',  '紙尿布');
+INSERT INTO ShopItems VALUES('基隆',  '腳踏車');
+INSERT INTO ShopItems VALUES('基隆',  '窗簾');
+INSERT INTO ShopItems VALUES('台北',  '啤酒');
+INSERT INTO ShopItems VALUES('台北',  '紙尿布');
+INSERT INTO ShopItems VALUES('台北',  '腳踏車');
+INSERT INTO ShopItems VALUES('高雄',  '電視');
+INSERT INTO ShopItems VALUES('高雄',  '紙尿布');
+INSERT INTO ShopItems VALUES('高雄',  '腳踏車');
+
+-- 搜尋同時備有啤酒、紙尿布與腳踏車的門市：錯誤的SQL
+SELECT DISTINCT shop 
+  FROM ShopItems 
+ WHERE item IN (SELECT item FROM Items);
+
+
+
+-- 搜尋同時備有啤酒、紙尿布與腳踏車的門市：正確的SQL 
+SELECT SI.shop 
+  FROM ShopItems SI INNER JOIN Items I 
+    ON SI.item = I.item 
+ GROUP BY SI.shop 
+HAVING COUNT(SI.item) = (SELECT COUNT(item) FROM Items);
+
+
+-- COUNT(I.item)已不只是3 
+SELECT SI.shop, COUNT(SI.item), COUNT(I.item) 
+  FROM ShopItems SI INNER JOIN Items I 
+    ON SI.item = I.item 
+ GROUP BY SI.shop;
+
+
+-- 嚴謹的關聯式除法：外部連結與使用COUNT函數 
+SELECT SI.shop 
+  FROM ShopItems SI LEFT OUTER JOIN Items I 
+    ON SI.item=I.item 
+ GROUP BY SI.shop 
+HAVING COUNT(SI.item) = (SELECT COUNT(item) FROM Items)  -- 條件 1 
+   AND COUNT(I.item)  = (SELECT COUNT(item) FROM Items); -- 條件 2
